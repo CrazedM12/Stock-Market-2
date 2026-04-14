@@ -12,9 +12,11 @@ from datetime import datetime, timedelta
 # CONFIG
 # ==========================
 
-API_KEY = "PKIEYKMO6UM4TDSX2NKHNVHIEK"
+API_KEY = "PKBZ3WW7KVDYK42XZHKSPJRI47"
 API_SECRET = "AZjzW9rNuCrHyg9Gek5QaHnezpi8P7LyGZ3i4o7aTe2f"
 BASE_URL= "https://paper-api.alpaca.markets/v2"
+
+
 
 data_client = StockHistoricalDataClient(API_KEY, API_SECRET)
 trade_client = TradingClient(API_KEY, API_SECRET, paper=True)
@@ -53,16 +55,20 @@ trades_today = 0
 # API PLACEHOLDERS
 # ==========================
 
+from alpaca.data.timeframe import TimeFrame
+from datetime import datetime, timedelta, timezone
+
 def get_latest_candles(symbol, limit=1):
-    end = datetime.utcnow()
+    end = datetime.now(timezone.utc)
     start = end - timedelta(minutes=5)
 
     request = StockBarsRequest(
         symbol_or_symbols=symbol,
-        timeframe="1Min",
+        timeframe=TimeFrame.Minute,
         start=start,
         end=end,
-        limit=limit
+        limit=limit,
+        feed="iex"   # <‑‑ FREE DATA FIX
     )
 
     bars = data_client.get_stock_bars(request)
@@ -81,13 +87,23 @@ def get_latest_candles(symbol, limit=1):
 
 
 
+
+
 def send_order(symbol, side, quantity):
-    """
-    TODO: Replace this with real order placement.
-    side: "BUY", "SELL"
-    quantity: int
-    """
-    print(f"[ORDER] {side} {quantity} {symbol}")
+    try:
+        order = MarketOrderRequest(
+            symbol=symbol,
+            qty=quantity,
+            side=OrderSide.BUY if side == "BUY" else OrderSide.SELL,
+            time_in_force=TimeInForce.DAY
+        )
+
+        trade_client.submit_order(order)
+        print(f"[ORDER SENT] {side} {quantity} {symbol}")
+
+    except Exception as e:
+        print(f"[ORDER ERROR] {e}")
+
 
 
 # ==========================
@@ -101,7 +117,7 @@ def get_levels(candles_list, lookback=LOOKBACK_LEVELS):
     return support, resistance
 
 
-def moving_average(candles_list, period=20):
+def moving_average(candles_list, period=5):
     if len(candles_list) < period:
         return None
     closes = [c["close"] for c in candles_list[-period:]]
@@ -127,20 +143,27 @@ def count_open_positions():
 def run_cycle():
     global current_bar, trades_today
 
+    print(f"\n=== Starting cycle {current_bar} ===")
+
     for symbol in WATCHLIST:
+        print(f"Fetching candles for {symbol}…")
+
         # 1) Pull newest price data
         try:
             new_data = get_latest_candles(symbol, limit=1)
+            print(f"Received {len(new_data)} candles for {symbol}")
         except NotImplementedError as e:
             print(e)
             return
 
         if not new_data:
+            print(f"No data returned for {symbol}")
             continue
 
         candles[symbol].extend(new_data)
 
-        if len(candles[symbol]) < max(LOOKBACK_LEVELS, 20):
+        if len(candles[symbol]) < max(LOOKBACK_LEVELS, 5):
+            print(f"Not enough data for {symbol} yet ({len(candles[symbol])} bars)")
             continue  # not enough data yet
 
         # 2) Recalculate support & resistance
@@ -171,7 +194,6 @@ def run_cycle():
 
             # LONG exits
             if pos["direction"] == "LONG":
-                # stop-loss: break of support
                 if last_close < support:
                     send_order(symbol, "SELL", pos["shares"])
                     print(f"{symbol}: SELL (support broken)")
@@ -185,7 +207,6 @@ def run_cycle():
                     trades_today += 1
                     continue
 
-                # take-profit
                 if pos["take_profit"] is not None and last_close >= pos["take_profit"]:
                     send_order(symbol, "SELL", pos["shares"])
                     print(f"{symbol}: SELL (take-profit hit)")
@@ -201,7 +222,6 @@ def run_cycle():
 
             # SHORT exits
             if pos["direction"] == "SHORT":
-                # stop-loss: break of resistance
                 if last_close > resistance:
                     send_order(symbol, "BUY", pos["shares"])
                     print(f"{symbol}: COVER (resistance broken)")
@@ -215,7 +235,6 @@ def run_cycle():
                     trades_today += 1
                     continue
 
-                # take-profit
                 if pos["take_profit"] is not None and last_close <= pos["take_profit"]:
                     send_order(symbol, "BUY", pos["shares"])
                     print(f"{symbol}: COVER (take-profit hit)")
@@ -237,18 +256,14 @@ def run_cycle():
             if current_bar - pos["last_trade_bar"] < COOLDOWN_BARS:
                 continue
 
-            # LONG entry off support
+            # LONG entry
             dist_support = last_close - support
             if trend == "UP" and 0 <= dist_support <= 0.02 * last_close:
 
-                risk_amount_pct = RISK_PERCENT_PER_TRADE
-                shares = position_size(PORTFOLIO_VALUE, risk_amount_pct, last_close, support)
+                shares = position_size(PORTFOLIO_VALUE, RISK_PERCENT_PER_TRADE, last_close, support)
 
                 if shares > 0 and count_open_positions() < MAX_POSITIONS:
-                    # take-profit: half distance to resistance
-                    tp_full = resistance
-                    tp_half = last_close + (resistance - last_close) / 2
-                    tp = tp_half  # or tp_full
+                    tp = last_close + (resistance - last_close) / 2
 
                     send_order(symbol, "BUY", shares)
                     print(f"{symbol}: BUY {shares} @ {last_close}, SL {support}, TP {tp}")
@@ -262,17 +277,14 @@ def run_cycle():
                     }
                     trades_today += 1
 
-            # SHORT entry off resistance
+            # SHORT entry
             dist_resistance = resistance - last_close
             if trend == "DOWN" and 0 <= dist_resistance <= 0.02 * last_close:
 
-                risk_amount_pct = RISK_PERCENT_PER_TRADE
-                shares = position_size(PORTFOLIO_VALUE, risk_amount_pct, last_close, resistance)
+                shares = position_size(PORTFOLIO_VALUE, RISK_PERCENT_PER_TRADE, last_close, resistance)
 
                 if shares > 0 and count_open_positions() < MAX_POSITIONS:
-                    tp_full = support
-                    tp_half = last_close - (last_close - support) / 2
-                    tp = tp_half  # or tp_full
+                    tp = last_close - (last_close - support) / 2
 
                     send_order(symbol, "SELL", shares)
                     print(f"{symbol}: SHORT {shares} @ {last_close}, SL {resistance}, TP {tp}")
