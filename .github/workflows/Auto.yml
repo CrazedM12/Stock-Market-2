@@ -1,37 +1,27 @@
-name: Three Cycle Trading Session
+name: Run Trading Bot (3 Cycles)
 
 on:
   workflow_dispatch:
-    inputs:
-      cycles:
-        description: "Number of cycles to run"
-        default: "3"
-        required: true
-        type: string
-      cycle_length:
-        description: "Length of each cycle (minutes)"
-        default: "5"
-        required: true
-        type: string
 
 jobs:
-  trading_session:
+  run_bot:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Session setup
-        run: |
-          echo "Preparing trading session"
-          echo "Cycles: ${{ inputs.cycles }}"
-          echo "Cycle length: ${{ inputs.cycle_length }} minutes"
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Run trading bot
-        run: |
-          echo "Bot will run ${{ inputs.cycles }} cycles"
-          echo "Each cycle lasts ${{ inputs.cycle_length }} minutes"
-          echo "Bot starts now"
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
 
-      - name: Session complete
+      - name: Install dependencies
         run: |
-          echo "Trading session finished"
-          echo "Review logs and reset for next session"
+          pip install alpaca-py
+
+      - name: Run trading bot for 3 cycles
+        run: |
+          echo "Starting trading bot..."
+          python3 bot.py
+          echo "Bot finished running."
