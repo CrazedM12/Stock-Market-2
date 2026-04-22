@@ -5,12 +5,12 @@ on:
     inputs:
       start_time:
         description: "Time to start the bot (EST)"
-        default: "09:30"
+        default: "13:00"
         required: true
         type: string
       stop_time:
         description: "Time to stop the bot (EST)"
-        default: "11:30"
+        default: "14:24"
         required: true
         type: string
 
