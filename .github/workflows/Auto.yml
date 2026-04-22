@@ -1,64 +1,37 @@
-name: Morning Session Trading Bot
+name: Three Cycle Trading Session
 
 on:
   workflow_dispatch:
     inputs:
-      start_time:
-        description: "Time to start the bot (EST)"
-        default: "13:00"
+      cycles:
+        description: "Number of cycles to run"
+        default: "3"
         required: true
         type: string
-      stop_time:
-        description: "Time to stop the bot (EST)"
-        default: "14:24"
+      cycle_length:
+        description: "Length of each cycle (minutes)"
+        default: "5"
         required: true
         type: string
 
 jobs:
-  morning_session:
+  trading_session:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Pre‑market checks
+      - name: Session setup
         run: |
-          echo "✔ Checking Alpaca buying power"
-          echo "✔ Ensuring no open positions"
-          echo "✔ Resetting bot state (candles, counters)"
-          echo "✔ Preparing for morning session"
+          echo "Preparing trading session"
+          echo "Cycles: ${{ inputs.cycles }}"
+          echo "Cycle length: ${{ inputs.cycle_length }} minutes"
 
-      - name: Wait until market open
+      - name: Run trading bot
         run: |
-          echo "⏳ Waiting until ${{ inputs.start_time }} EST to start trading"
-          # (In real use, you'd sleep until start_time)
+          echo "Bot will run ${{ inputs.cycles }} cycles"
+          echo "Each cycle lasts ${{ inputs.cycle_length }} minutes"
+          echo "Bot starts now"
 
-      - name: Start trading bot
+      - name: Session complete
         run: |
-          echo "🚀 Starting trading bot at ${{ inputs.start_time }} EST"
-          echo "Bot will run using:"
-          echo "- 5‑minute warmup"
-          echo "- MA5 trend logic"
-          echo "- Support/resistance entries"
-          echo "- Auto exits (TP + SL)"
-          echo "- 10% max position cap"
-
-      - name: Run during morning session
-        run: |
-          echo "📈 Bot running from ${{ inputs.start_time }} to ${{ inputs.stop_time }}"
-          echo "Monitoring:"
-          echo "- Trend direction"
-          echo "- Entry signals"
-          echo "- Exit signals"
-          echo "- Position sizing"
-          echo "- Cooldown rules"
-
-      - name: Stop trading bot
-        run: |
-          echo "🛑 Stopping bot at ${{ inputs.stop_time }} EST"
-          echo "✔ Checking for open positions"
-          echo "✔ Allowing bot to exit or closing manually if needed"
-          echo "✔ Morning session complete"
-
-      - name: Session summary
-        run: |
-          echo "📊 Morning session finished"
-          echo "Review logs and prepare for tomorrow"
+          echo "Trading session finished"
+          echo "Review logs and reset for next session"
