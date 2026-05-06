@@ -1,21 +1,23 @@
-name: Run Trading Bot (1:00–2:20 PM CST)
+name: Auto Trading Bot (1:00–2:20 PM CST)
 
 on:
   schedule:
-    # Run at 1:00 PM CST (19:00 UTC)
+    # Runs every weekday at 1:00 PM CST (19:00 UTC)
     - cron: "0 19 * * 1-5"
   workflow_dispatch:
 
 jobs:
   run_bot:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4   # Node 24 compatible
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5   # Node 24 compatible
         with:
           python-version: "3.10"
 
@@ -23,16 +25,16 @@ jobs:
         run: |
           pip install alpaca-py
 
-      - name: Wait until 1:00 PM CST (19:00 UTC)
+      - name: Start trading session
         run: |
-          echo "Starting trading session at 1:00 PM CST (19:00 UTC)"
+          echo "Starting trading bot at 1:00 PM CST (19:00 UTC)"
+          echo "Bot will run 3 cycles of 5 minutes each."
 
-      - name: Run trading bot for 3 cycles (5 minutes each)
+      - name: Run trading bot
         run: |
-          echo "Running bot for 3 cycles of 5 minutes..."
           python3 bot.py
 
-      - name: Stop session at 2:20 PM CST (20:20 UTC)
+      - name: End session
         run: |
-          echo "Trading session ended at 2:20 PM CST (20:20 UTC)"
-          echo "Bot finished successfully."
+          echo "Trading session complete."
+          echo "Bot finished before 2:20 PM CST (20:20 UTC)."
