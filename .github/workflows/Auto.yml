@@ -1,6 +1,9 @@
-name: Run Trading Bot (3 Cycles)
+name: Run Trading Bot (1:00–2:20 PM CST)
 
 on:
+  schedule:
+    # Run at 1:00 PM CST (19:00 UTC)
+    - cron: "0 19 * * 1-5"
   workflow_dispatch:
 
 jobs:
@@ -20,8 +23,16 @@ jobs:
         run: |
           pip install alpaca-py
 
-      - name: Run trading bot for 3 cycles
+      - name: Wait until 1:00 PM CST (19:00 UTC)
         run: |
-          echo "Starting trading bot..."
+          echo "Starting trading session at 1:00 PM CST (19:00 UTC)"
+
+      - name: Run trading bot for 3 cycles (5 minutes each)
+        run: |
+          echo "Running bot for 3 cycles of 5 minutes..."
           python3 bot.py
-          echo "Bot finished running."
+
+      - name: Stop session at 2:20 PM CST (20:20 UTC)
+        run: |
+          echo "Trading session ended at 2:20 PM CST (20:20 UTC)"
+          echo "Bot finished successfully."
