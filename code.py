@@ -1,35 +1,43 @@
 import time
 from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
+from alpaca.data.timeframe import TimeFrame
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
-from datetime import datetime, timedelta
 
+API_KEY = "PKTRHHPNWZ45YRVE6GR4SRZILA"
+API_SECRET = "6ojeNt5ChEC5MoNuiYnPgsJHqME2HvmVLeDDPRHpzj1x"
+BASE_URL = "https://paper-api.alpaca.markets/v2"
+
+DATA_URL = "https://data.alpaca.markets/v2/stocks"
+ORDER_URL = "https://paper-api.alpaca.markets/v2/orders"
 
 # ==========================
 # CONFIG
 # ==========================
-
-API_KEY = "PKBZ3WW7KVDYK42XZHKSPJRI47"
-API_SECRET = "AZjzW9rNuCrHyg9Gek5QaHnezpi8P7LyGZ3i4o7aTe2f"
-BASE_URL= "https://paper-api.alpaca.markets/v2"
 
 
 
 data_client = StockHistoricalDataClient(API_KEY, API_SECRET)
 trade_client = TradingClient(API_KEY, API_SECRET, paper=True)
 
-
 WATCHLIST = ["MU", "AAPL", "NVDA", "CRWV", "IREN"]
-PORTFOLIO_VALUE = 100_000
-RISK_PERCENT_PER_TRADE = 0.02      # 2%
+
+account = trade_client.get_account()
+PORTFOLIO_VALUE = float(account.buying_power)
+RISK_PERCENT_PER_TRADE = 0.02      # 2% risk per trade
 MAX_POSITIONS = 3
 MAX_TRADES_PER_DAY = 10
 COOLDOWN_BARS = 3
-LOOKBACK_LEVELS = 20
+LOOKBACK_LEVELS = 5
 BAR_INTERVAL_SECONDS = 60          # how often run_cycle is called
+MAX_POSITION_PCT = 0.10            # max 10% of buying power per trade
+
+print("Using buying power:", PORTFOLIO_VALUE)
 
 # ==========================
 # STATE
@@ -50,13 +58,9 @@ positions = {
 current_bar = 0
 trades_today = 0
 
-
 # ==========================
-# API PLACEHOLDERS
+# API HELPERS
 # ==========================
-
-from alpaca.data.timeframe import TimeFrame
-from datetime import datetime, timedelta, timezone
 
 def get_latest_candles(symbol, limit=1):
     end = datetime.now(timezone.utc)
@@ -68,7 +72,7 @@ def get_latest_candles(symbol, limit=1):
         start=start,
         end=end,
         limit=limit,
-        feed="iex"   # <‑‑ FREE DATA FIX
+        feed="iex"   # free data
     )
 
     bars = data_client.get_stock_bars(request)
@@ -86,9 +90,6 @@ def get_latest_candles(symbol, limit=1):
     return results
 
 
-
-
-
 def send_order(symbol, side, quantity):
     try:
         order = MarketOrderRequest(
@@ -103,8 +104,6 @@ def send_order(symbol, side, quantity):
 
     except Exception as e:
         print(f"[ORDER ERROR] {e}")
-
-
 
 # ==========================
 # HELPER FUNCTIONS
@@ -134,7 +133,6 @@ def position_size(portfolio_value, risk_pct, entry, stop):
 
 def count_open_positions():
     return sum(1 for p in positions.values() if p["direction"] != "FLAT")
-
 
 # ==========================
 # CORE LOGIC
@@ -170,14 +168,14 @@ def run_cycle():
         support, resistance = get_levels(candles[symbol])
         last_close = candles[symbol][-1]["close"]
 
-        # 3) Determine trend direction (MA20)
-        ma20 = moving_average(candles[symbol], 20)
-        if ma20 is None:
+        # 3) Determine trend direction (MA5)
+        ma5 = moving_average(candles[symbol], 5)
+        if ma5 is None:
             continue
 
-        if last_close > ma20:
+        if last_close > ma5:
             trend = "UP"
-        elif last_close < ma20:
+        elif last_close < ma5:
             trend = "DOWN"
         else:
             trend = "SIDEWAYS"
@@ -260,7 +258,13 @@ def run_cycle():
             dist_support = last_close - support
             if trend == "UP" and 0 <= dist_support <= 0.02 * last_close:
 
+                # risk-based size
                 shares = position_size(PORTFOLIO_VALUE, RISK_PERCENT_PER_TRADE, last_close, support)
+
+                # hard cap by max dollars
+                max_dollars = PORTFOLIO_VALUE * MAX_POSITION_PCT
+                max_shares_by_dollars = int(max_dollars / last_close)
+                shares = min(shares, max_shares_by_dollars)
 
                 if shares > 0 and count_open_positions() < MAX_POSITIONS:
                     tp = last_close + (resistance - last_close) / 2
@@ -281,7 +285,13 @@ def run_cycle():
             dist_resistance = resistance - last_close
             if trend == "DOWN" and 0 <= dist_resistance <= 0.02 * last_close:
 
+                # risk-based size
                 shares = position_size(PORTFOLIO_VALUE, RISK_PERCENT_PER_TRADE, last_close, resistance)
+
+                # hard cap by max dollars
+                max_dollars = PORTFOLIO_VALUE * MAX_POSITION_PCT
+                max_shares_by_dollars = int(max_dollars / last_close)
+                shares = min(shares, max_shares_by_dollars)
 
                 if shares > 0 and count_open_positions() < MAX_POSITIONS:
                     tp = last_close - (last_close - support) / 2
@@ -300,12 +310,24 @@ def run_cycle():
 
     current_bar += 1
 
-
 # ==========================
-# MAIN LOOP (example)
+# MAIN LOOP (CORRECT VERSION)
 # ==========================
 
 if __name__ == "__main__":
-    while True:
-        run_cycle()
-        time.sleep(BAR_INTERVAL_SECONDS)
+    MAX_CYCLES = 3
+
+    for cycle in range(MAX_CYCLES):
+        print(f"\n=== Starting candle collection for cycle {cycle + 1} ===")
+
+        # Collect 5 candles (1 per minute)
+        for i in range(5):
+            print(f"Collecting candle {i + 1}/5...")
+            run_cycle()  # fetches 1 candle + updates logic
+            time.sleep(60)  # wait 1 minute for next candle
+
+        print(f"\n=== Running trading logic for cycle {cycle + 1} ===")
+        run_cycle()  # now run trading logic with 5 candles available
+
+    print("\n✔ Finished all 3 cycles. Bot stopped.")
+
