@@ -9,8 +9,8 @@ from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
 
-API_KEY = "PKTRHHPNWZ45YRVE6GR4SRZILA"
-API_SECRET = "6ojeNt5ChEC5MoNuiYnPgsJHqME2HvmVLeDDPRHpzj1x"
+API_KEY = "PKHATW7PJE3KVL7D7ZCPEFNV6Q"
+API_SECRET = "9Bx8JwjsveMLiUmFt6UL6G7qYeMzHqG6G1bHCscEYvMw"
 BASE_URL = "https://paper-api.alpaca.markets/v2"
 
 DATA_URL = "https://data.alpaca.markets/v2/stocks"
