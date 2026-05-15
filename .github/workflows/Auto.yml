@@ -3,7 +3,7 @@ name: Auto Trading Bot (1:00–2:20 PM CST)
 on:
   schedule:
     # Runs every weekday at 1:00 PM CST (19:00 UTC)
-    - cron: "0 19 * * 1-5"
+    - cron: "0 16 * * 1-5"
   workflow_dispatch:
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
 
       - name: Start trading session
         run: |
-          echo "Starting trading bot at 1:00 PM CST (19:00 UTC)"
+          echo "Starting trading bot at 11:00 AM CST (16:00 UTC)"
           echo "Bot will run 3 cycles of 5 minutes each."
 
       - name: Run trading bot
@@ -37,4 +37,4 @@ jobs:
       - name: End session
         run: |
           echo "Trading session complete."
-          echo "Bot finished before 2:20 PM CST (20:20 UTC)."
+          echo "Bot finished before 12:20 PM CST (17:20 UTC)."
